@@ -1,0 +1,7 @@
+[package]
+name = "reduce"
+version = "0.1.0"
+authors = ["Johnny Dickinson <kc0itv@gmail.com>"]
+edition = "2018"
+
+[dependencies]

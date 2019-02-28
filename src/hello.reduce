@@ -1,0 +1,8 @@
+use print;
+
+print("Hello world!")
+
+var x = 1
+var y = 23
+var z = x + y
+print(z)
