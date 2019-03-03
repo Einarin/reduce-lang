@@ -1,17 +1,18 @@
 use std::str::CharIndices;
 
-#[derive(Debug, Copy, Clone)]
-pub enum TokenType<'a> {
-    Keyword(&'a str),
-    Id(&'a str),
-    NumberLiteral(&'a str),
-    StringLiteral(&'a str),
-    Punctuation(&'a str),
-    Operator(&'a str),
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum TokenType {
+    Keyword,
+    Id,
+    NumberLiteral,
+    StringLiteral,
+    Punctuation,
+    Operator,
 }
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Token<'a> {
-    pub token: TokenType<'a>,
+    pub ttype: TokenType,
+    pub text: &'a str,
     pub line: usize,
     pub offset: usize,
 }
@@ -36,19 +37,19 @@ impl<'a> TokenIterator<'a> {
 
 const KEYWORDS: [&str; 10] = [ "use", "let", "var", "struct", "fn", "type", "self", "Self", "class", "trait"];
 
-fn token_type_from_alpha_str<'a>(token_str: &'a str) -> TokenType<'a> {
+fn token_type_from_alpha_str<'a>(token_str: &'a str) -> TokenType {
     for keyword in &KEYWORDS {
         if token_str == *keyword {
-            return TokenType::Keyword(token_str)
+            return TokenType::Keyword
         }
     }
     if token_str.chars().next().unwrap().is_numeric() {
-        return TokenType::NumberLiteral(token_str)
+        return TokenType::NumberLiteral
     }
-    TokenType::Id(token_str)
+    TokenType::Id
 }
 
-const PUNCTUATION: [char; 8] = [ ';', ':', '(', ')', '{', '}', '[', ']'];
+const PUNCTUATION: [char; 9] = [ ';', ':', '(', ')', '{', '}', '[', ']', ','];
 
 fn is_punctuation(character: &char) -> bool {
     for sym in &PUNCTUATION {
@@ -93,7 +94,8 @@ impl<'a> Iterator for TokenIterator<'a> {
                 if let Some(alpha) = alpha_start {
                     let token_str = &self.content[alpha..index];
                     return Some(Token {
-                        token: token_type_from_alpha_str(token_str),
+                        ttype: token_type_from_alpha_str(token_str),
+                        text: token_str,
                         line: *line,
                         offset: index - *line_offset,
                     })
@@ -101,14 +103,16 @@ impl<'a> Iterator for TokenIterator<'a> {
                 if is_punctuation(&character) {
                     let _ = self.iter.next();
                     return Some(Token {
-                        token: TokenType::Punctuation(&self.content[index..index+1]),
+                        ttype: TokenType::Punctuation,
+                        text: &self.content[index..index+1],
                         line: *line,
                         offset: index - *line_offset,
                     })
                 } else if is_operator(&character) {
                     let _ = self.iter.next();
                     return Some(Token {
-                        token: TokenType::Operator(&self.content[index..index+1]),
+                        ttype: TokenType::Operator,
+                        text: &self.content[index..index+1],
                         line: *line,
                         offset: index - *line_offset,
                     })
@@ -121,7 +125,8 @@ impl<'a> Iterator for TokenIterator<'a> {
                     while let Some((index,character)) = self.iter.next() {
                         if character == '"' {
                             return Some(Token {
-                                token: TokenType::StringLiteral(&self.content[lit_start..index+1]),
+                                ttype: TokenType::StringLiteral,
+                                text: &self.content[lit_start..index+1],
                                 line: *line,
                                 offset: lit_start - *line_offset,
                             })

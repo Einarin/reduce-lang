@@ -1,8 +1,9 @@
 use print;
 
-print("Hello world!")
-
-var x = 1
-var y = 23
-var z = x + y
-print(z)
+print("Hello world!");
+var a;
+var x = 1;
+var y = 2;
+let z = x + y;
+print(z);
+y + z;
