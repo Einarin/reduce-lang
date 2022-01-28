@@ -57,8 +57,12 @@ fn eval_expr(ctx: &mut Context, expr: &Expression) -> DynamicTypeResult {
 }
 
 fn eval_infix(ctx: &mut Context, infix: &InfixOperation) -> DynamicTypeResult {
-    match infix.operator.text {
+    //println!("Evaluating {}",infix.operator.text);
+    let res = match infix.operator.text {
         "+" => eval_expr(ctx, &*infix.lhs)? + eval_expr(ctx, &*infix.rhs)?,
+        "-" => eval_expr(ctx, &*infix.lhs)? - eval_expr(ctx, &*infix.rhs)?,
+        "*" => eval_expr(ctx, &*infix.lhs)? * eval_expr(ctx, &*infix.rhs)?,
+        "/" => eval_expr(ctx, &*infix.lhs)? / eval_expr(ctx, &*infix.rhs)?,
         "=" => {
             match &*infix.lhs {
                 Expression::Variable(ref var) => {
@@ -71,5 +75,7 @@ fn eval_infix(ctx: &mut Context, infix: &InfixOperation) -> DynamicTypeResult {
             }
         },
         _ => panic!("Not implemented {:?}", infix.operator.text)
-    }
+    };
+    //println!("result {:?}", res);
+    res
 }

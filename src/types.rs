@@ -30,6 +30,48 @@ impl Add for DynamicType {
     }
 }
 
+impl Sub for DynamicType {
+    type Output = DynamicTypeResult;
+
+    fn sub(self, rhs: DynamicType) -> Self::Output {
+        match (&self,&rhs) {
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Integer(lhs - rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(lhs - rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Float(lhs - *rhs as f64))),
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(*lhs as f64 - rhs))),
+            _ => Err(format!("TypeError: Can't add {:?} + {:?}",self,rhs))
+        }
+    }
+}
+
+impl Mul for DynamicType {
+    type Output = DynamicTypeResult;
+
+    fn mul(self, rhs: DynamicType) -> Self::Output {
+        match(&self,&rhs) {
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Integer(lhs * rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(lhs * rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Float(lhs * *rhs as f64))),
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(*lhs as f64 * rhs))),
+            _ => Err(format!("TypeError: Can't add {:?} + {:?}",self,rhs))
+        }
+    }
+}
+
+impl Div for DynamicType {
+    type Output = DynamicTypeResult;
+
+    fn div(self, rhs: DynamicType) -> Self::Output {
+        match(&self,&rhs) {
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Integer(lhs / rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(lhs / rhs))),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Float(lhs / *rhs as f64))),
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(*lhs as f64 / rhs))),
+            _ => Err(format!("TypeError: Can't add {:?} + {:?}",self,rhs))
+        }
+    }
+}
+
 impl DynamicType {
     pub fn from_token<'a>(token: &Token<'a>) -> DynamicTypeResult {
         match token.ttype {

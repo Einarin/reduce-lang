@@ -40,6 +40,7 @@ fn main() {
     println!("{:?}",tokens);
     println!("=== PARSING ===");
     let mut ast = parse(&mut tokens.into_iter()).unwrap();
+    println!("{:?}",ast);
     println!("=== TYPE INFERENCE ===");
     type_data(&mut ast);
     println!("=== AST ===");

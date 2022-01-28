@@ -1,4 +1,4 @@
-use crate::tokenize::{Token, TokenType};
+use crate::tokenize::{Token};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -17,10 +17,19 @@ impl<'a> fmt::Display for Type<'a> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Variable<'a> {
     pub name: Token<'a>,
     pub var_type: Option<Type<'a>>,
+}
+
+impl<'a> std::fmt::Debug for Variable<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match &self.var_type {
+            Some(vtype) => write!(f,"{} {}", vtype, self.name.text),
+            None => write!(f,"var {}", self.name.text)
+        }
+    }
 }
 
 impl<'a> Variable<'a> {
@@ -57,10 +66,24 @@ pub struct Declaration<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct FnDeclaration<'a> {
+    pub name: Token<'a>,
+    pub args: Vec<Variable<'a>>,
+    pub return_type: Option<Type<'a>>,
+    pub body: Scope<'a>,
+}
+
+#[derive(Clone, PartialEq)]
 pub struct InfixOperation<'a> {
     pub lhs: Box<Expression<'a>>,
     pub operator: Token<'a>,
     pub rhs: Box<Expression<'a>>,
+}
+
+impl<'a> std::fmt::Debug for InfixOperation<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"{:?} {} {:?}", self.lhs, self.operator.text, self.rhs)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -74,6 +97,7 @@ pub enum Expression<'a> {
     EndOfExpression,
     Import(Import<'a>),
     Declaration(Declaration<'a>),
+    FnDeclaration(FnDeclaration<'a>),
     InfixOperation(InfixOperation<'a>),
     Literal(Token<'a>),
     Variable(Variable<'a>),
@@ -98,6 +122,9 @@ impl<'a> fmt::Display for Expression<'a> {
                     write!(f,"{} {}", mutability, decl.variable.name.text)
                 }
             },
+            Expression::FnDeclaration(decl) => {
+                write!(f,"{}({:?})->{:?}",decl.name.text,decl.args,decl.return_type)
+            }
             Expression::InfixOperation(op) => write!(f,"{} {} {}", op.lhs, op.operator.text, op.rhs),
             Expression::Literal(lit) => write!(f,"{}",lit.text),
             Expression::Variable(var) => write!(f, "{}", var.name.text),
