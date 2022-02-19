@@ -1,5 +1,7 @@
 use crate::tokenize::{Token,TokenType};
+use core::num;
 use std::ops::*;
+use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum Number {
@@ -68,6 +70,19 @@ impl Div for DynamicType {
             (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => Ok(DynamicType::Number(Number::Float(lhs / *rhs as f64))),
             (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => Ok(DynamicType::Number(Number::Float(*lhs as f64 / rhs))),
             _ => Err(format!("TypeError: Can't add {:?} + {:?}",self,rhs))
+        }
+    }
+}
+
+impl fmt::Display for DynamicType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DynamicType::Void => write!(f,"(void)"),
+            DynamicType::String(string) => write!(f,"{}",string),
+            DynamicType::Number(number) => match number {
+                Number::Integer(num) => write!(f,"{}",num),
+                Number::Float(num) => write!(f,"{}",num),
+            },
         }
     }
 }

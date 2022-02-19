@@ -1,7 +1,7 @@
-use print;
+use std::print;
 
 fn add(a, b) {
-    a + b
+    a + b + z
 }
 
 print("Hello world!");
@@ -9,5 +9,13 @@ var a;
 var x = 3;
 var y = 2;
 let z = ((x * 2) / 3) + 1;
-print(z);
-z = y + z;
+print("z = ",z);
+print("1 + 2 + z = ",add(1 + 2, z));
+dbg(1 + 2);
+
+var accum = 0;
+
+fn increment() {
+    accum = accum + 1;
+    accum
+}

@@ -1,6 +1,12 @@
 use std::str::CharIndices;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
+pub struct FileLocation {
+    pub line: usize,
+    pub offset: usize,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum TokenType {
     Keyword,
     Id,
@@ -8,14 +14,34 @@ pub enum TokenType {
     StringLiteral,
     Punctuation,
     Operator,
+    Comment,
 }
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct Token<'a> {
     pub ttype: TokenType,
     pub text: &'a str,
-    pub line: usize,
-    pub offset: usize,
+    pub location: FileLocation,
 }
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OwnedToken {
+    pub ttype: TokenType,
+    pub text: String,
+    pub location: FileLocation,
+}
+
+impl<'a> From<Token<'a>> for OwnedToken {
+    fn from(token: Token<'a>) -> Self {
+        OwnedToken { ttype: token.ttype, text: token.text.to_string(), location: token.location }
+    }
+}
+
+impl<'a> Token<'a> {
+    fn to_owned(&self) -> OwnedToken {
+        OwnedToken::from(*self)
+    }
+}
+
 #[derive(Debug)]
 pub struct TokenIterator<'a> {
     content: &'a str,
@@ -48,6 +74,8 @@ fn token_type_from_alpha_str<'a>(token_str: &'a str) -> TokenType {
     }
     TokenType::Id
 }
+
+//fn is_comment(character: &char, )
 
 const PUNCTUATION: [char; 9] = [ ';', ':', '(', ')', '{', '}', '[', ']', ','];
 
@@ -96,8 +124,10 @@ impl<'a> Iterator for TokenIterator<'a> {
                     return Some(Token {
                         ttype: token_type_from_alpha_str(token_str),
                         text: token_str,
-                        line: *line,
-                        offset: index - *line_offset,
+                        location: FileLocation {
+                            line: *line,
+                            offset: index - *line_offset,
+                        }
                     })
                 }
                 if is_punctuation(&character) {
@@ -105,16 +135,20 @@ impl<'a> Iterator for TokenIterator<'a> {
                     return Some(Token {
                         ttype: TokenType::Punctuation,
                         text: &self.content[index..index+1],
-                        line: *line,
-                        offset: index - *line_offset,
+                        location: FileLocation {
+                            line: *line,
+                            offset: index - *line_offset,
+                        }
                     })
                 } else if is_operator(&character) {
                     let _ = self.iter.next();
                     return Some(Token {
                         ttype: TokenType::Operator,
                         text: &self.content[index..index+1],
-                        line: *line,
-                        offset: index - *line_offset,
+                        location: FileLocation {
+                            line: *line,
+                            offset: index - *line_offset,
+                        }
                     })
                 } else if character == '\n' {
                     *line_offset = index;
@@ -127,8 +161,10 @@ impl<'a> Iterator for TokenIterator<'a> {
                             return Some(Token {
                                 ttype: TokenType::StringLiteral,
                                 text: &self.content[lit_start..index+1],
-                                line: *line,
-                                offset: lit_start - *line_offset,
+                                location: FileLocation {
+                                    line: *line,
+                                    offset: lit_start - *line_offset,
+                                },
                             })
                         }
                     }

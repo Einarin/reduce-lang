@@ -1,4 +1,4 @@
-use crate::tokenize::{Token};
+use crate::tokenize::{Token, OwnedToken};
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -13,7 +13,7 @@ pub struct Type<'a> {
 
 impl<'a> fmt::Display for Type<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f,"{}",self.path.join(":"))
+        write!(f,"{}",self.path.join("::"))
     }
 }
 
@@ -95,6 +95,7 @@ pub struct Callable<'a> {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression<'a> {
     EndOfExpression,
+    EndOfScope,
     Import(Import<'a>),
     Declaration(Declaration<'a>),
     FnDeclaration(FnDeclaration<'a>),
@@ -109,7 +110,8 @@ impl<'a> fmt::Display for Expression<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Expression::EndOfExpression => write!(f,"EndOfExpression (Should this be here?)"),
-            Expression::Import(import) => write!(f,"use {}", import.path.iter().map(|x|x.text).collect::<Vec<&str>>().join(":")),
+            Expression::EndOfScope => write!(f,"EndOfScope (Should this be here?)"),
+            Expression::Import(import) => write!(f,"use {}", import.path.iter().map(|x|x.text).collect::<Vec<&str>>().join("::")),
             Expression::Declaration(decl) => {
                 let mutability = if decl.constant {
                     "let"
@@ -132,4 +134,40 @@ impl<'a> fmt::Display for Expression<'a> {
             Expression::Scope(scope) => panic!("Display not implemented for Scope"),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct OwnedType {
+    pub path: Vec<String>,
+}
+
+impl<'a> From<&Type<'a>> for OwnedType {
+    fn from(var_type: &Type<'a>) -> Self {
+        OwnedType{ path : var_type.path.iter().map(|s|s.to_string()).collect() }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub struct OwnedVariable {
+    pub name: OwnedToken,
+    pub var_type: Option<OwnedType>,
+}
+
+impl<'a> From<&Variable<'a>> for OwnedVariable {
+    fn from(variable: &Variable<'a>) -> Self {
+        OwnedVariable {
+            name: variable.name.into(),
+            var_type: match &variable.var_type {
+                Some(vtype) => Some(OwnedType::from(vtype)),
+                None => None
+            }
+        }
+    }
+}
+
+pub struct OwnedFnDeclaration {
+    pub name: String,
+    pub definition_location: (usize,usize),
+    pub args: Vec<OwnedVariable>,
+    pub return_type: Option<OwnedType>
 }

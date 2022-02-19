@@ -1,4 +1,4 @@
-use std::vec::Vec;
+use std::{vec::Vec, rc::Rc, thread::{sleep_ms, sleep}, time};
 mod tokenize;
 mod parser;
 mod ast;
@@ -39,14 +39,14 @@ fn main() {
     let tokens: Vec<Token> = TokenIterator::new(test).collect();
     println!("{:?}",tokens);
     println!("=== PARSING ===");
-    let mut ast = parse(&mut tokens.into_iter()).unwrap();
+    let mut ast = parse_scope(&mut tokens.into_iter().peekable()).unwrap();
     println!("{:?}",ast);
     println!("=== TYPE INFERENCE ===");
     type_data(&mut ast);
     println!("=== AST ===");
     println!("Imports:");
     for imp in &ast.imports {
-        println!("\t{}",imp.path.iter().map(|x|x.text).collect::<Vec<&str>>().join(":"));
+        println!("\t{}",imp.path.iter().map(|x|x.text).collect::<Vec<&str>>().join("::"));
     }
     println!("Data:");
     for var in &ast.data {
@@ -67,11 +67,21 @@ fn main() {
         println!("{} => {:?}",expr,expr);
     }
     println!("=== EVAL ===");
-    let mut context = Context::new();
-    context.functions.insert("print".to_owned(),Box::new(|x: Vec<DynamicType>|{
-        println!("{:?}",x[0]);
-        Ok(DynamicType::Void)
-    }));
+    let mut context = Context::new(test);
+    context.register_builtins();
     let result = eval_scope(&mut context, &ast);
     println!("result: {:?}", result);
+    while let Some(result) = invoke_fn(&mut context, "increment", &Vec::new()) {
+        match result {
+            Ok(value) => {
+                println!("{}",value);
+                if let DynamicType::Number(Number::Integer(val)) = value {
+                    if val > 9 {
+                        break;
+                    }
+                }
+            },
+            Err(msg) => println!("{}",msg)
+        }
+    }
 }
