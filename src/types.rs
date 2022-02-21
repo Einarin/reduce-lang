@@ -1,5 +1,6 @@
 use crate::tokenize::{Token,TokenType};
 use core::num;
+use std::default;
 use std::ops::*;
 use std::fmt;
 
@@ -13,10 +14,17 @@ pub enum Number {
 pub enum DynamicType {
     Void,
     String(String),
-    Number(Number)
+    Number(Number),
+    Bool(bool)
 }
 
 pub type DynamicTypeResult = Result<DynamicType,String>;
+
+impl Default for DynamicType {
+    fn default() -> Self {
+        Self::Void
+    }
+}
 
 impl Add for DynamicType {
     type Output = DynamicTypeResult;
@@ -83,6 +91,7 @@ impl fmt::Display for DynamicType {
                 Number::Integer(num) => write!(f,"{}",num),
                 Number::Float(num) => write!(f,"{}",num),
             },
+            DynamicType::Bool(bool) => write!(f,"{}",bool),
         }
     }
 }
@@ -102,6 +111,11 @@ impl DynamicType {
             TokenType::StringLiteral => {
                 Ok(DynamicType::String(token.text[1..token.text.len()-1].to_string()))
             },
+            TokenType::Keyword => match token.text {
+                "true" => Ok(DynamicType::Bool(true)),
+                "false" => Ok(DynamicType::Bool(false)),
+                _ => Err(format!("{:?} is not a value!", token))
+            }
             _ => Err(format!("Failed to create value from {:?}", token))
         }
     }

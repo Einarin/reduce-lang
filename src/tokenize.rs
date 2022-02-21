@@ -1,9 +1,15 @@
-use std::str::CharIndices;
+use std::{str::CharIndices, fmt::{Display, self}};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct FileLocation {
     pub line: usize,
     pub offset: usize,
+}
+
+impl Display for FileLocation {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f,"{}:{}",self.line,self.offset)
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -61,7 +67,7 @@ impl<'a> TokenIterator<'a> {
     }
 }
 
-const KEYWORDS: [&str; 10] = [ "use", "let", "var", "struct", "fn", "type", "self", "Self", "class", "trait"];
+const KEYWORDS: [&str; 16] = [ "use", "let", "var", "struct", "fn", "type", "self", "Self", "class", "trait", "true", "false", "if", "while", "for", "match"];
 
 fn token_type_from_alpha_str<'a>(token_str: &'a str) -> TokenType {
     for keyword in &KEYWORDS {
@@ -88,7 +94,7 @@ fn is_punctuation(character: &char) -> bool {
     false
 }
 
-const OPERATORS: [char; 8] = ['=', '+', '-', '*', '/', '&', '^', '|'];
+const OPERATORS: [char; 10] = ['=', '+', '-', '*', '/', '&', '^', '|', '<', '>'];
 
 fn is_operator(character: &char) -> bool {
     for sym in &OPERATORS {
@@ -141,15 +147,40 @@ impl<'a> Iterator for TokenIterator<'a> {
                         }
                     })
                 } else if is_operator(&character) {
-                    let _ = self.iter.next();
-                    return Some(Token {
-                        ttype: TokenType::Operator,
-                        text: &self.content[index..index+1],
-                        location: FileLocation {
-                            line: *line,
-                            offset: index - *line_offset,
+                    let (_start,op) = self.iter.next().unwrap();
+                    if op == '/' {
+                        if let Some((_,'/')) = self.iter.peek() {
+                            // Comment
+                            while let Some(_) = self.iter.next() {
+                                if let Some((_,'\n')) = self.iter.peek() {
+                                    break;
+                                    /*return Some(Token {
+                                        ttype: TokenType::Comment,
+                                        text: &self.content[index+1..=current.0],
+                                        location: FileLocation { line: *line, offset: (index-1) - *line_offset }
+                                    })*/
+                                }
+                            }
+                        } else {
+                            return Some(Token {
+                                ttype: TokenType::Operator,
+                                text: &self.content[index..index+1],
+                                location: FileLocation {
+                                    line: *line,
+                                    offset: index - *line_offset,
+                                }
+                            })
                         }
-                    })
+                    } else {
+                        return Some(Token {
+                            ttype: TokenType::Operator,
+                            text: &self.content[index..index+1],
+                            location: FileLocation {
+                                line: *line,
+                                offset: index - *line_offset,
+                            }
+                        })
+                    }
                 } else if character == '\n' {
                     *line_offset = index;
                     *line += 1;

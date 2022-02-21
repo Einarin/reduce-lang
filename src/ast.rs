@@ -1,5 +1,5 @@
-use crate::tokenize::{Token, OwnedToken};
-use std::fmt;
+use crate::tokenize::{Token, OwnedToken, FileLocation};
+use std::{fmt, env::var};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Import<'a> {
@@ -132,6 +132,22 @@ impl<'a> fmt::Display for Expression<'a> {
             Expression::Variable(var) => write!(f, "{}", var.name.text),
             Expression::Callable(call) => write!(f, "{}({})",call.name, call.args.iter().map(|x|format!("{}",x)).collect::<Vec<String>>().join(",")),
             Expression::Scope(scope) => panic!("Display not implemented for Scope"),
+        }
+    }
+}
+
+impl<'a> Expression<'a> {
+    pub fn location(&self) -> FileLocation {
+        match self {
+            Expression::EndOfExpression | Expression::EndOfScope => FileLocation { line: 0, offset: 0 },
+            Expression::Import(import) => import.path[0].location,
+            Expression::Declaration(decl) => decl.variable.name.location,
+            Expression::FnDeclaration(fndecl) => fndecl.name.location,
+            Expression::InfixOperation(op) => op.lhs.location(),
+            Expression::Literal(lit) => lit.location,
+            Expression::Variable(var) => var.name.location,
+            Expression::Callable(call) => call.name.location(),
+            Expression::Scope(scope) => scope.statements[0].location()
         }
     }
 }

@@ -1,6 +1,7 @@
 use std::iter::Peekable;
 use crate::tokenize::{Token, TokenType};
 use crate::ast::*;
+use crate::types::DynamicType;
 
 pub fn parse_scope<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) -> Result<Scope<'a>,String> {
     let mut scope = Scope::new();
@@ -272,15 +273,18 @@ fn parse_expr<'a, T: Iterator<Item = Token<'a>>>(iter: &mut Peekable<T>) -> Resu
             }
             _ => panic!("unimplemented at {:?}",token)
         },
+        TokenType::Keyword => match token.text {
+            "true" | "false" => parse_expr_starting_with_literal(iter.next().unwrap(), iter),
+            _ => Err(format!("Unexpected keyword {:?}", token))
+        }
         _ => panic!("unimplemented at {:?}",token)//Err(format!("unexpected token {:?}", token))
     }
 }
 
 fn parse_expr_starting_with_literal<'a, T: Iterator<Item = Token<'a>>>(literal: Token<'a>, iter: &mut Peekable<T>) -> Result<Expression<'a>,String> {
-    match literal.ttype {
-        TokenType::NumberLiteral | TokenType::StringLiteral => (),
-        _ => panic!("Token {:?} wasn't a literal!", literal)
-    };
+    if let Err(msg) = DynamicType::from_token(&literal) {
+        panic!("Token {:?} wasn't a literal! {}", literal, msg);
+    }
     loop {
         let token = if let Some(token) = iter.peek() {
             *token

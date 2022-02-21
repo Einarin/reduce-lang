@@ -1,77 +1,125 @@
 use crate::ast::*;
 use crate::types::*;
+use std::cell::Cell;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use std::rc::Rc;
 
-#[derive(Clone)]
-pub struct Context<'a> {
-    pub data: Rc<RefCell<HashMap<String,DynamicType>>>,
-    pub native_functions: HashMap<String,Rc<dyn Fn(Vec<DynamicType>)->DynamicTypeResult>>,
-    pub functions: HashMap<String,FnDeclaration<'a>>,
+pub struct StackFrame<'parent> {
+    data: HashMap<String,Cell<DynamicType>>,
+    parent: Option<&'parent StackFrame<'parent>>
+} 
+
+impl<'a> StackFrame<'a> {
+    pub fn new() -> StackFrame<'static> {
+        StackFrame {
+            data: HashMap::new(),
+            parent: None
+        }
+    }
+    pub fn child(&'a self) -> StackFrame<'a> {
+        StackFrame { data: HashMap::new(), parent: Some(self) }
+    }
+    pub fn resolve(&self, key: &str) -> Option<&Cell<DynamicType>> {
+        let local = self.data.get(key);
+        if local.is_some() {
+            return local;
+        }
+        if let Some(parent) = self.parent {
+            return parent.resolve(key);
+        }
+        None
+    }
+    pub fn get(&self, key: &str) -> Option<DynamicType> {
+        match self.resolve(key) {
+            Some(cell) => {
+                let val = cell.take();
+                let copy = val.clone();
+                cell.set(val);
+                Some(copy)
+            },
+            None => None
+        }
+    }
+    pub fn set(&mut self, key: &str, val: DynamicType) -> Result<(),String> {
+        if let Some(cell) = self.resolve(key) {
+            cell.set(val);
+            Ok(())
+        } else {
+            Err(format!("Tried to set variable {} but it doesn't exist!", key))
+        }
+    }
+    pub fn push<S: Into<String>>(&mut self, key: S, val: DynamicType) {
+        self.data.insert(key.into(), Cell::new(val));
+    }
 }
 
-impl<'a> Context<'a> {
-    pub fn new(_source: &'a str) -> Context<'a> {
-        Context {
-            data: Rc::new(RefCell::new(HashMap::new())),
-            native_functions: HashMap::new(),
+pub struct NativeFunctions {
+    functions: HashMap<String,Box<dyn Fn(Vec<DynamicType>)->DynamicTypeResult>>,
+} 
+
+impl NativeFunctions {
+    pub fn new() -> NativeFunctions {
+        NativeFunctions {
             functions: HashMap::new()
         }
     }
-    pub fn child(&self) -> Context<'a> {
-        Context { data: self.data.clone(), native_functions: HashMap::new(), functions: HashMap::new() }
+    pub fn register_fn<S: Into<String>, F:'static + Fn(Vec<DynamicType>)->DynamicTypeResult>(&mut self, name: S, callable: F) {
+        self.functions.insert(name.into(), Box::new(callable));
     }
-    pub fn register_fn<S: Into<String>>(&mut self, name: S, callable: Rc<dyn Fn(Vec<DynamicType>)->DynamicTypeResult>) {
-        self.native_functions.insert(name.into(), callable);
-    }
-
     pub fn register_builtins(&mut self) {
-        self.register_fn("print",Rc::new(|args: Vec<DynamicType>|{
+        self.register_fn("print",|args: Vec<DynamicType>|{
             for v in args {
                 print!("{}",v);
             }
             println!("");
             Ok(DynamicType::Void)
-        }));
+        });
+    }
+    pub fn get<T: Into<String>>(&self, func_name: T) -> Option<&Box<dyn Fn(Vec<DynamicType>)->DynamicTypeResult>> {
+        self.functions.get(&func_name.into())
     }
 }
 
-pub fn eval_scope<'a>(ctx: &mut Context<'a>, scope: &Scope<'a>) -> DynamicTypeResult {
+pub type DefinedFunctions<'a> = RefCell<HashMap<String,FnDeclaration<'a>>>;
+
+pub fn eval_scope<'source,'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, scope: &Scope<'source>) -> DynamicTypeResult {
     for decl in &scope.data {
-        ctx.data.borrow_mut().insert(decl.variable.name.text.to_string(),DynamicType::Void);
+        frame.push(decl.variable.name.text,DynamicType::Void);
     }
 
     for decl in &scope.data {
         if let Some(expr) = &decl.value {
-            let new_val = eval_expr(ctx, &*expr)?;
-            ctx.data.borrow_mut().insert(decl.variable.name.text.to_string(), new_val);
+            let new_val = eval_expr(frame, native_funcs, defined_funcs, &*expr)?;
+            frame.set(decl.variable.name.text, new_val);
         }
     }
     let mut result = DynamicType::Void;
     for expr in &scope.statements {
-        result = eval_expr(ctx, &expr)?;
+        result = eval_expr(frame, native_funcs, defined_funcs, &expr)?;
     }
     Ok(result)
 }
 
-fn eval_expr<'a>(ctx: &mut Context<'a>, expr: &Expression<'a>) -> DynamicTypeResult {
+fn eval_expr<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, expr: &Expression<'source>) -> DynamicTypeResult {
     match expr {
-        Expression::Scope(scope) => eval_scope(ctx, scope),
-        Expression::InfixOperation(infix) => eval_infix(ctx, infix),
+        Expression::Scope(scope) => eval_scope(frame, native_funcs, defined_funcs, scope),
+        Expression::InfixOperation(infix) => eval_infix(frame, native_funcs, defined_funcs, infix),
         Expression::Literal(token) => DynamicType::from_token(token),
-        Expression::Variable(var) => Ok(ctx.data.borrow()[var.name.text].clone()),
+        Expression::Variable(var) => match frame.get(var.name.text) {
+            Some(value) => Ok(value),
+            None => Err(format!("Attempt to read variable {:?} but it doesn't exist!",var))
+        },
         Expression::Callable(call) => {
-            if let Some(result) = eval_builtins(ctx,call) {
+            if let Some(result) = eval_builtins(frame, native_funcs, defined_funcs, call) {
                 return result;
             }
             if let Expression::Variable(ref target) = &*call.name {
-                let args = call.args.iter().map(|x|eval_expr(ctx, x).unwrap()).collect();
-                if let Some(result) = eval_fn(ctx,call,&args) {
+                let args = call.args.iter().map(|x|eval_expr(frame, native_funcs, defined_funcs, x).unwrap()).collect();
+                if let Some(result) = eval_fn(frame, native_funcs, defined_funcs, call, &args) {
                     return result;
                 }
                 //println!("trying to call {} with {:?}",target.name.text,args);
-                if let Some(func) = ctx.native_functions.get(target.name.text) {
+                if let Some(func) = native_funcs.get(target.name.text) {
                     func(args)
                 } else {
                     panic!("Tried to call {} at {:?}",target.name.text, target.name)
@@ -84,25 +132,26 @@ fn eval_expr<'a>(ctx: &mut Context<'a>, expr: &Expression<'a>) -> DynamicTypeRes
         Expression::Import(_) => Ok(DynamicType::Void),
         Expression::Declaration(_) => Ok(DynamicType::Void),
         Expression::FnDeclaration(func) => {
-            ctx.functions.insert(func.name.text.to_string(), func.clone());
+            defined_funcs.borrow_mut().insert(func.name.text.to_string(), func.clone());
             Ok(DynamicType::Void)
         },
         _ => panic!("Not implemented {:?}", expr)
     }
 }
 
-fn eval_infix<'a>(ctx: &mut Context<'a>, infix: &InfixOperation<'a>) -> DynamicTypeResult {
-    //println!("Evaluating {}",infix.operator.text);
+fn eval_infix<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, infix: &InfixOperation<'source>) -> DynamicTypeResult {
+    let lhs = eval_expr(frame, native_funcs, defined_funcs, &*infix.lhs)?;
+    let rhs = eval_expr(frame, native_funcs, defined_funcs, &*infix.rhs)?;
     let res = match infix.operator.text {
-        "+" => eval_expr(ctx, &*infix.lhs)? + eval_expr(ctx, &*infix.rhs)?,
-        "-" => eval_expr(ctx, &*infix.lhs)? - eval_expr(ctx, &*infix.rhs)?,
-        "*" => eval_expr(ctx, &*infix.lhs)? * eval_expr(ctx, &*infix.rhs)?,
-        "/" => eval_expr(ctx, &*infix.lhs)? / eval_expr(ctx, &*infix.rhs)?,
+        "+" => lhs + rhs,
+        "-" => lhs - rhs,
+        "*" => lhs * rhs,
+        "/" => lhs / rhs,
         "=" => {
             match &*infix.lhs {
                 Expression::Variable(ref var) => {
-                    let new_val = eval_expr(ctx, &*infix.rhs)?;
-                    ctx.data.borrow_mut().insert(var.name.text.to_string(), new_val);
+                    let new_val = eval_expr(frame, native_funcs, defined_funcs, &*infix.rhs)?;
+                    frame.set(var.name.text, new_val)?;
                     Ok(DynamicType::Void)
                 },
                 Expression::Declaration(_) => Ok(DynamicType::Void),
@@ -115,30 +164,35 @@ fn eval_infix<'a>(ctx: &mut Context<'a>, infix: &InfixOperation<'a>) -> DynamicT
     res
 }
 
-pub fn invoke_fn<'a>(ctx: &mut Context<'a>, function: &str, args:  &Vec<DynamicType>) -> Option<DynamicTypeResult> {
-    if let Some(func) = ctx.functions.get(function) {
+pub fn invoke_fn<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, function: &str, args:  &Vec<DynamicType>) -> Option<DynamicTypeResult> {
+    let func = if let Some(func) = defined_funcs.borrow().get(function) {
+        Some(func.clone())
+    } else {
+        None
+    };
+    if let Some(func) = func {
         if func.args.len() != args.len() {
             panic!("{:?} called with {} arguments, but it expects {}",func.name,args.len(),func.args.len());
         }
-        let mut func_ctx = ctx.clone();
+        let mut child_frame = frame.child();
         for arg in func.args.iter().zip(args.iter()) {
-            func_ctx.data.borrow_mut().insert(arg.0.name.text.to_string(),arg.1.clone());
+            child_frame.push(arg.0.name.text.to_string(),arg.1.clone());
         }
-        Some(eval_scope(&mut func_ctx,&func.body))
+        Some(eval_scope(&mut child_frame,native_funcs,defined_funcs,&func.body))
     } else {
         None
     }
 }
 
-fn eval_fn<'a>(ctx: &mut Context<'a>, call: &Callable<'a>, args: &Vec<DynamicType>) -> Option<DynamicTypeResult> {
+fn eval_fn<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, call: &Callable<'source>, args: &Vec<DynamicType>) -> Option<DynamicTypeResult> {
     if let Expression::Variable(ref target) = &*call.name {
-        invoke_fn(ctx,target.name.text,args)
+        invoke_fn(frame, native_funcs, defined_funcs,target.name.text,args)
     } else {
         panic!("Expected an identifier, got {:?}",call.name)
     }
 }
 
-fn eval_builtins<'a>(ctx: &mut Context<'a>, call: &Callable<'a>) -> Option<DynamicTypeResult> {
+fn eval_builtins<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &NativeFunctions, defined_funcs: &mut DefinedFunctions<'source>, call: &Callable<'source>) -> Option<DynamicTypeResult> {
     match &*call.name {
         Expression::Variable(ref target) => {
             match target.name.text {
@@ -146,9 +200,9 @@ fn eval_builtins<'a>(ctx: &mut Context<'a>, call: &Callable<'a>) -> Option<Dynam
                     if call.args.len() != 1 {
                         Some(Err(format!("{:?}: dbg expects exactly one expression as its argument! Got {}", target.name.location, call.args.len())))
                     } else {
-                        let result = eval_expr(ctx,&call.args[0]);
+                        let result = eval_expr(frame, native_funcs, defined_funcs,&call.args[0]);
                         if let Ok(ref value) = result {
-                            println!("{:?} = {}",call.args[0],value);
+                            println!("{}: {} = {}",call.args[0].location(),call.args[0],value);
                         }
                         Some(result)
                     }

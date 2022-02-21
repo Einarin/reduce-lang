@@ -1,4 +1,4 @@
-use std::{vec::Vec, rc::Rc, thread::{sleep_ms, sleep}, time};
+use std::{vec::Vec, rc::Rc, thread::{sleep_ms, sleep}, time, cell::RefCell, collections::HashMap};
 mod tokenize;
 mod parser;
 mod ast;
@@ -14,6 +14,10 @@ fn literal_types(token: &Token) -> &'static str {
     match token.ttype {
         TokenType::NumberLiteral => "Number",
         TokenType::StringLiteral => "String",
+        TokenType::Keyword => match token.text {
+            "true" | "false" => "Bool",
+            _ => panic!("Keyword {:?} is not a literal!",token)
+        }
         _ => panic!("Expected a literal token! Got {:?} instead", token)
     }
 }
@@ -67,11 +71,14 @@ fn main() {
         println!("{} => {:?}",expr,expr);
     }
     println!("=== EVAL ===");
-    let mut context = Context::new(test);
-    context.register_builtins();
-    let result = eval_scope(&mut context, &ast);
+    let mut frame = StackFrame::new();
+    let mut native = NativeFunctions::new();
+    let mut defined = RefCell::new(HashMap::new());
+    native.register_builtins();
+    let result = eval_scope(&mut frame, &native, &mut defined, &ast);
     println!("result: {:?}", result);
-    while let Some(result) = invoke_fn(&mut context, "increment", &Vec::new()) {
+    println!("invoking accum until it returns 10 or more");
+    while let Some(result) = invoke_fn(&mut frame, &native, &mut defined, "increment", &Vec::new()) {
         match result {
             Ok(value) => {
                 println!("{}",value);
