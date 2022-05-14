@@ -82,6 +82,41 @@ impl Div for DynamicType {
     }
 }
 
+impl PartialEq<bool> for DynamicType {
+    fn eq(&self, other: &bool) -> bool {
+        match &self {
+            DynamicType::Bool(bool) => bool == other,
+            _ => panic!("TypeError: {:?} not comparable to bool",self)
+        }
+    }
+}
+
+impl PartialEq for DynamicType {
+    fn eq(&self, other: &Self) -> bool {
+        match(&self,&other) {
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Integer(rhs))) => *lhs == *rhs,
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Float(rhs))) => *lhs == *rhs,
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => *lhs == *rhs as f64,
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => *lhs as f64 == *rhs,
+            (DynamicType::Bool(lhs),DynamicType::Bool(rhs)) => lhs == rhs,
+            (DynamicType::String(lhs),DynamicType::String(rhs)) => lhs == rhs,
+            _ => panic!("TypeError: Can't compare {:?} == {:?}",self,other)
+        }
+    }
+}
+
+impl PartialOrd for DynamicType {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        match(&self,&other) {
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Integer(rhs))) => lhs.partial_cmp(rhs),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Float(rhs))) => lhs.partial_cmp(rhs),
+            (DynamicType::Number(Number::Float(lhs)),DynamicType::Number(Number::Integer(rhs))) => lhs.partial_cmp(&(*rhs as f64)),
+            (DynamicType::Number(Number::Integer(lhs)),DynamicType::Number(Number::Float(rhs))) => (*lhs as f64).partial_cmp(rhs),
+            _ => None
+        }
+    }
+}
+
 impl fmt::Display for DynamicType {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -118,5 +153,36 @@ impl DynamicType {
             }
             _ => Err(format!("Failed to create value from {:?}", token))
         }
+    }
+}
+
+impl From<i32> for DynamicType {
+    fn from(val:i32) -> Self {
+        DynamicType::Number(Number::Integer(val as i64))
+    }
+}
+impl From<i64> for DynamicType {
+    fn from(val:i64) -> Self {
+        DynamicType::Number(Number::Integer(val))
+    }
+}
+impl From<f32> for DynamicType {
+    fn from(val:f32) -> Self {
+        DynamicType::Number(Number::Float(val as f64))
+    }
+}
+impl From<f64> for DynamicType {
+    fn from(val:f64) -> Self {
+        DynamicType::Number(Number::Float(val))
+    }
+}
+impl From<bool> for DynamicType {
+    fn from(val:bool) -> Self {
+        DynamicType::Bool(val)
+    }
+}
+impl From<String> for DynamicType {
+    fn from(val:String) -> Self {
+        DynamicType::String(val)
     }
 }

@@ -67,7 +67,7 @@ impl<'a> TokenIterator<'a> {
     }
 }
 
-const KEYWORDS: [&str; 16] = [ "use", "let", "var", "struct", "fn", "type", "self", "Self", "class", "trait", "true", "false", "if", "while", "for", "match"];
+const KEYWORDS: [&str; 17] = [ "use", "let", "var", "struct", "fn", "type", "self", "Self", "class", "trait", "true", "false", "if", "else", "while", "for", "match"];
 
 fn token_type_from_alpha_str<'a>(token_str: &'a str) -> TokenType {
     for keyword in &KEYWORDS {

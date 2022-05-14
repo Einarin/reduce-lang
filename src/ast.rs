@@ -93,6 +93,21 @@ pub struct Callable<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+pub struct If<'a> {
+    pub keyword: Token<'a>,
+    pub condition: Box<Expression<'a>>,
+    pub body: Box<Scope<'a>>,
+    pub else_body: Option<Box<Scope<'a>>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct While<'a> {
+    pub keyword: Token<'a>,
+    pub condition: Box<Expression<'a>>,
+    pub body: Box<Scope<'a>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub enum Expression<'a> {
     EndOfExpression,
     EndOfScope,
@@ -103,7 +118,9 @@ pub enum Expression<'a> {
     Literal(Token<'a>),
     Variable(Variable<'a>),
     Callable(Callable<'a>),
-    Scope(Scope<'a>)
+    Scope(Scope<'a>),
+    If(If<'a>),
+    While(While<'a>),
 }
 
 impl<'a> fmt::Display for Expression<'a> {
@@ -132,6 +149,8 @@ impl<'a> fmt::Display for Expression<'a> {
             Expression::Variable(var) => write!(f, "{}", var.name.text),
             Expression::Callable(call) => write!(f, "{}({})",call.name, call.args.iter().map(|x|format!("{}",x)).collect::<Vec<String>>().join(",")),
             Expression::Scope(scope) => panic!("Display not implemented for Scope"),
+            Expression::If(if_expr) => write!(f, "if {} {{\n{}\n}}", if_expr.condition,"\t..."),
+            Expression::While(while_expr) => write!(f, "while {} {{\n{}\n}}", while_expr.condition, "\t..."),
         }
     }
 }
@@ -147,7 +166,9 @@ impl<'a> Expression<'a> {
             Expression::Literal(lit) => lit.location,
             Expression::Variable(var) => var.name.location,
             Expression::Callable(call) => call.name.location(),
-            Expression::Scope(scope) => scope.statements[0].location()
+            Expression::Scope(scope) => scope.statements[0].location(),
+            Expression::If(if_stmt) => if_stmt.keyword.location,
+            Expression::While(while_stmt) => while_stmt.keyword.location,
         }
     }
 }

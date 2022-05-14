@@ -1,27 +1,45 @@
 use std::print;
 
-fn add(a, b) {
-    a + b + z
+fn fib(n) {
+    if n > 2 {
+        let a = fib(n-1);
+        let b = fib(n-2);
+        a + b
+    } else {
+        let c = 1;
+        c
+    }
 }
 
-print("Hello world!");
-var a;
-var x = 3;
-var y = 2;
-let z = ((x * 2) / 3) + 1;
-print("z = ",z);
-print("1 + 2 + z = ",dbg(add(1 + 2, z)));
-dbg(1 + 2);
-print("accum = ",accum);
-let boolean = true;
+let limit = 100;
+print("calculating fibonacci numbers until one is greater than ",limit);
+var accum = 1;
+var result = 0;
+while result < limit {
+    result = fib(accum);
+    print(accum," -> ",result);
+    accum = accum + 1;
+}
+
+//use std::print;
+
+//print("Hello world!");
+//var a;
+//var x = 3;
+//print(x > 1);
+//var y = 2;
+//let z = ((x * 2) / 3) + 1;
+//print("z = ",z);
+//print("1 + 2 + z = ",dbg(add(1 + 2, z)));
+//dbg(1 + 2);
+//print("accum = ",accum);
+//let boolean = false;
 // comment
-//if boolean {
-//    print(true);
+//if x > 1 {
+//    print("x > 1");
+//}
+//fn add(a, b) {
+//    a + b + z
 //}
 
-var accum = 0;
 
-fn increment() {
-    accum = accum + 1;
-    accum
-}

@@ -55,6 +55,8 @@ fn parse_statement<'a, T: Iterator<Item = Token<'a>>>(tokens: &mut Peekable<T>) 
                 }
             },
             "fn" => Ok(Expression::FnDeclaration(parse_fn(tokens)?)),
+            "if" => parse_if(tokens),
+            "while" => parse_while(tokens),
             _ => panic!("Unimplemented keyword {}", token.text)
         },
         TokenType::Id | TokenType::Punctuation => parse_expr(tokens),
@@ -194,6 +196,80 @@ fn parse_fn_body<'a, T: Iterator<Item = Token<'a>>>(scope_start: Token<'a>, iter
     }
 }
 
+fn parse_if<'a, T: Iterator<Item = Token<'a>>>(iter: &mut Peekable<T>) -> Result<Expression<'a>,String> {
+    let keyword = iter.next().unwrap();
+    let condition = parse_expr(iter)?;
+    println!("IF condition: {:?}",condition);
+    if let Some(token) = iter.next() {
+        if token.ttype != TokenType::Punctuation || token.text != "{" {
+            return Err(format!("Expected a {{, got a {:?}",token));
+        }
+    } else {
+        return Err(format!("Unexpected EOF after {}",condition.location()));
+    }
+    let body = parse_scope(iter)?;
+    if let Some(token) = iter.next() {
+        if token.ttype != TokenType::Punctuation || token.text != "}" {
+            return Err(format!("Expected a {{, got a {:?}",token));
+        }
+    } else {
+        return Err(format!("Unexpected EOF after {}",condition.location()));
+    }
+    let mut else_body = None;
+    if let Some(token) = iter.peek() {
+        if token.ttype == TokenType::Keyword && token.text == "else" {
+            let _else_token = iter.next();
+            if let Some(token) = iter.next() {
+                if token.ttype != TokenType::Punctuation || token.text != "{" {
+                    return Err(format!("Expected a {{, got a {:?}",token));
+                }
+            } else {
+                return Err(format!("Unexpected EOF after {}",condition.location()));
+            }
+            else_body = Some(Box::new(parse_scope(iter)?));
+            if let Some(token) = iter.next() {
+                if token.ttype != TokenType::Punctuation || token.text != "}" {
+                    return Err(format!("Expected a {{, got a {:?}",token));
+                }
+            } else {
+                return Err(format!("Unexpected EOF after {}",condition.location()));
+            }
+        }
+    }
+    Ok(Expression::If(If {
+        keyword,
+        condition: Box::new(condition),
+        body: Box::new(body),
+        else_body,
+    }))
+}
+
+fn parse_while<'a, T: Iterator<Item = Token<'a>>>(iter: &mut Peekable<T>) -> Result<Expression<'a>,String> {
+    let keyword = iter.next().unwrap();
+    let condition = parse_expr(iter)?;
+    println!("While condition: {:?}",condition);
+    if let Some(token) = iter.next() {
+        if token.ttype != TokenType::Punctuation || token.text != "{" {
+            return Err(format!("Expected a {{, got a {:?}",token));
+        }
+    } else {
+        return Err(format!("Unexpected EOF after {}",condition.location()));
+    }
+    let body = parse_scope(iter)?;
+    if let Some(token) = iter.next() {
+        if token.ttype != TokenType::Punctuation || token.text != "}" {
+            return Err(format!("Expected a {{, got a {:?}",token));
+        }
+    } else {
+        return Err(format!("Unexpected EOF after {}",condition.location()));
+    }
+    Ok(Expression::While(While {
+        keyword,
+        condition: Box::new(condition),
+        body: Box::new(body)
+    }))
+}
+
 fn parse_var_declaration<'a, T: Iterator<Item = Token<'a>>>(iter: &mut Peekable<T>) -> Result<Declaration<'a>,String> {
     let keyword = iter.next().unwrap();
     if keyword.ttype != TokenType::Keyword {
@@ -294,7 +370,7 @@ fn parse_expr_starting_with_literal<'a, T: Iterator<Item = Token<'a>>>(literal: 
         match token.ttype {
             TokenType::Punctuation => match token.text {
                 ";" | ")" | "]" | "," => {iter.next(); return Ok(Expression::Literal(literal))},
-                "}" => return Ok(Expression::Literal(literal)),
+                "}" | "{" => return Ok(Expression::Literal(literal)),
                 _ => return Err(format!("Unexpected punctuation {:?}",token))
             },
             TokenType::Operator => {
@@ -344,6 +420,7 @@ fn parse_expr_starting_with_id<'a, T: Iterator<Item = Token<'a>>>(identifier: To
         } else {
             return Err(format!("unexpected end of input after {:?}",identifier));
         };
+        println!("parse_expr_starting_with_id: next is {:?}",token);
         match token.ttype {
             TokenType::Punctuation => match token.text {
                 "(" => return parse_callable(lhs, iter.next().unwrap(), iter),
@@ -363,11 +440,12 @@ fn parse_expr_starting_with_id<'a, T: Iterator<Item = Token<'a>>>(identifier: To
                     }
                 },
                 ";" | ")" | "]" | "," => {iter.next(); return Ok(lhs)},
-                "}" => return Ok(lhs),
+                "}" | "{" => return Ok(lhs),
                 _ => return Err(format!("Unexpected punctuation {:?}",token))
             },
             TokenType::Operator => {
                 let operator = iter.next().unwrap();
+                println!("operator: {:?}",operator);
                 let rhs = if let Some(rhs_start) = iter.peek() {
                     parse_expr(iter)
                 } else {

@@ -37,6 +37,17 @@ fn type_data(scope: &mut Scope) {
     }
 }
 
+fn fib(n: i64) -> i64 {
+    if n > 2 {
+        let a = fib(n-1);
+        let b = fib(n-2);
+        a + b
+    } else {
+        let c = 1;
+        c
+    }
+}
+
 fn main() {
     let test = include_str!("hello.reduce");
     println!("=== TOKENIZING ===");
@@ -77,18 +88,28 @@ fn main() {
     native.register_builtins();
     let result = eval_scope(&mut frame, &native, &mut defined, &ast);
     println!("result: {:?}", result);
-    println!("invoking accum until it returns 10 or more");
-    while let Some(result) = invoke_fn(&mut frame, &native, &mut defined, "increment", &Vec::new()) {
+    /*println!("invoking fib until it returns 100 or more");
+    let mut num = 1;
+    while let Some(result) = invoke_fn(&mut frame, &native, &mut defined, "fib", &vec![num.into()]) {
         match result {
             Ok(value) => {
                 println!("{}",value);
-                if let DynamicType::Number(Number::Integer(val)) = value {
-                    if val > 9 {
-                        break;
-                    }
+                if value > 99.into() {
+                    break;
                 }
             },
             Err(msg) => println!("{}",msg)
         }
-    }
+        num+=1;
+    }*/
+    let number = 16;
+    println!("invoking fib({})!",number);
+    let start = std::time::Instant::now();
+    let result = invoke_fn(&mut StackFrame::new(), &native, &mut defined, "fib", &vec![number.into()]);
+    let duration = start.elapsed();
+    println!("Calculating result {:?} took {:?}",result.unwrap(),duration);
+    let native_start = std::time::Instant::now();
+    let native_result = fib(number);
+    let native_duration = native_start.elapsed();
+    println!("Calculating in rust returned {} in {:?}", native_result, native_duration);
 }

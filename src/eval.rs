@@ -135,6 +135,24 @@ fn eval_expr<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &Native
             defined_funcs.borrow_mut().insert(func.name.text.to_string(), func.clone());
             Ok(DynamicType::Void)
         },
+        Expression::If(if_expr) => {
+            let cond_result = eval_expr(frame, native_funcs, defined_funcs, &if_expr.condition)?;
+            if cond_result == true {
+                eval_scope(&mut frame.child(), native_funcs, defined_funcs, &if_expr.body)
+            } else {
+                if if_expr.else_body.is_some() {
+                    eval_scope(&mut frame.child(), native_funcs, defined_funcs, if_expr.else_body.as_ref().unwrap())
+                } else {
+                    Ok(DynamicType::Void)
+                }
+            }
+        },
+        Expression::While(while_expr) => {
+            while eval_expr(frame, native_funcs, defined_funcs, &while_expr.condition)? == true {
+                eval_scope(&mut frame.child(), native_funcs, defined_funcs, &while_expr.body)?;
+            }
+            Ok(DynamicType::Void)
+        }
         _ => panic!("Not implemented {:?}", expr)
     }
 }
@@ -147,11 +165,16 @@ fn eval_infix<'source, 'data>(frame: &'data mut StackFrame, native_funcs: &Nativ
         "-" => lhs - rhs,
         "*" => lhs * rhs,
         "/" => lhs / rhs,
+        ">" => Ok(DynamicType::Bool(lhs > rhs)),
+        "<" => Ok(DynamicType::Bool(lhs < rhs)),
+        ">=" => Ok(DynamicType::Bool(lhs >= rhs)),
+        "<=" => Ok(DynamicType::Bool(lhs <= rhs)),
+        "==" => Ok(DynamicType::Bool(lhs == rhs)),
+        "!=" => Ok(DynamicType::Bool(lhs != rhs)),
         "=" => {
             match &*infix.lhs {
                 Expression::Variable(ref var) => {
-                    let new_val = eval_expr(frame, native_funcs, defined_funcs, &*infix.rhs)?;
-                    frame.set(var.name.text, new_val)?;
+                    frame.set(var.name.text, rhs)?;
                     Ok(DynamicType::Void)
                 },
                 Expression::Declaration(_) => Ok(DynamicType::Void),
